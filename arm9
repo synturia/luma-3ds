@@ -1,0 +1,89 @@
+@@ -123,8 +123,8 @@ static void initScreens(u32 brightnessLevel, struct fb *fbs)
+    for(u32 i = 0; i < 256; i++)
+        *(vu32 *)0x10400584 = 0x10101 * i;
+
+    //*(vu32 *)0x10202204 = 0x00000000; //unset LCD fill
+    //*(vu32 *)0x10202A04 = 0x00000000;
+    *(vu32 *)0x10202204 = 0x00000000; //unset LCD fill
+    *(vu32 *)0x10202A04 = 0x00000000;
+}
+
+static void setupFramebuffers(struct fb *fbs)
+  4  arm9/linker.ld 
+@@ -45,19 +45,16 @@ SECTIONS
+
+        chainloader.o(.text*)
+        i2c.o(.text*)
+        mcu.o(.text*)
+        arm9_exception_handlers.o(.text*)
+
+        *(.arm9_exception_handlers.rodata*)
+        chainloader.o(.rodata*)
+        i2c.o(.rodata*)
+        mcu.o(.rodata*)
+        arm9_exception_handlers.o(.rodata*)
+
+        *(.arm9_exception_handlers.data*)
+        chainloader.o(.data*)
+        i2c.o(.data*)
+        mcu.o(.data*)
+        arm9_exception_handlers.o(.data*)
+        . = ALIGN(32);
+    } >itcm AT>main :itcm
+@@ -70,7 +67,6 @@ SECTIONS
+        *(.arm9_exception_handlers.bss*)
+        chainloader.o(.bss* COMMON)
+        i2c.o(.bss* COMMON)
+        mcu.o(.bss* COMMON)
+        arm9_exception_handlers.o(.bss* COMMON)
+        . = ALIGN(32);
+        PROVIDE (__itcm_end__ = ABSOLUTE(.));
+  8  arm9/source/arm9_exception_handlers.c 
+@@ -25,7 +25,8 @@
+*/
+
+#include "arm9_exception_handlers.h"
+#include "mcu.h"
+#include "i2c.h"
+#include "screen.h"
+
+#define FINAL_BUFFER    0x25000000
+
+@@ -102,9 +103,10 @@ void __attribute__((noreturn)) arm9ExceptionHandlerMain(u32 *registerDump, u32 t
+    //Copy header (actually optimized by the compiler)
+    *(ExceptionDumpHeader *)FINAL_BUFFER = dumpHeader;
+
+    mcuPowerBacklightsOff();
+    if(ARESCREENSINITIALIZED) I2C_writeReg(I2C_DEV_MCU, 0x22, 1 << 0); //Shutdown LCD
+
+    ((void (*)())0xFFFF0830)(); //Ensure that all memory transfers have completed and that the data cache has been flushed
+
+    mcuReboot();
+    I2C_writeReg(I2C_DEV_MCU, 0x20, 1 << 2); //Reboot
+    while(true);
+}
+  2  arm9/source/exceptions.c 
+@@ -200,5 +200,5 @@ void detectAndProcessExceptionDumps(void)
+
+exit:
+    memset((void *)dumpHeader, 0, dumpHeader->totalSize);
+    powerOff();
+    mcuPowerOff();
+}
+  2  arm9/source/firm.c 
+@@ -37,7 +37,6 @@
+#include "screen.h"
+#include "fmt.h"
+#include "chainloader.h"
+#include "mcu.h"
+
+static Firm *firm = (Firm *)0x20001000;
+
+@@ -565,7 +564,6 @@ u32 patch1x2xNativeAndSafeFirm(void)
+
+void launchFirm(int argc, char **argv)
+{
+    mcuFinalize();
+    prepareArm11ForFirmlaunch();
+    chainload(argc, argv, firm);
+}
